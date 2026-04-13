@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trade, Account } from '../types';
 import ImageCropper from './ImageCropper';
+import { calculatePipValue, isIndexOrCrypto, isCommodity } from '../services/forexService';
 
 interface ConfirmTradeDialogProps {
   isOpen: boolean;
@@ -24,50 +25,58 @@ export default function ConfirmTradeDialog({ isOpen, onClose, onConfirm, trade, 
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen || !trade || !exitPrice) {
-      setCalculatedPL(null);
-      return;
-    }
+    const calculatePL = async () => {
+      if (!isOpen || !trade || !exitPrice) {
+        setCalculatedPL(null);
+        return;
+      }
 
-    const exit = parseFloat(exitPrice);
-    const entry = trade.entryPrice;
-    const lots = trade.lotSize || 0;
-    const addLoss = parseFloat(additionalLoss) || 0;
+      const exit = parseFloat(exitPrice);
+      const entry = trade.entryPrice;
+      const lots = trade.lotSize || 0;
+      const addLoss = parseFloat(additionalLoss) || 0;
 
-    if (isNaN(exit)) {
-      setCalculatedPL(null);
-      return;
-    }
+      if (isNaN(exit)) {
+        setCalculatedPL(null);
+        return;
+      }
 
-    let pl = 0;
-    const pairUpper = trade.pair.toUpperCase();
+      let pl = 0;
+      const pairUpper = trade.pair.toUpperCase();
 
-    // P/L Calculation Logic (Reverse of Lot Size)
-    if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
-      pl = (exit - entry) * 100 * lots;
-    } else if (pairUpper.includes('OIL') || pairUpper.includes('WTI') || pairUpper.includes('BRENT')) {
-      pl = (exit - entry) * 1000 * lots;
-    } else if (pairUpper.includes('NAS') || pairUpper.includes('SPX') || pairUpper.includes('US30') || pairUpper.includes('GER40') || pairUpper.includes('BTC') || pairUpper.includes('ETH') || pairUpper.includes('CRYPTO')) {
-      pl = (exit - entry) * lots;
-    } else {
-      // Forex
-      const isJpy = pairUpper.includes('JPY');
-      const pipValue = isJpy ? 0.01 : 0.0001;
-      const pips = (exit - entry) / pipValue;
-      const pipValuePerLot = 10; 
-      pl = pips * pipValuePerLot * lots;
-    }
+      // P/L Calculation Logic (Reverse of Lot Size)
+      if (isCommodity(pairUpper)) {
+        if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
+          pl = (exit - entry) * 100 * lots;
+        } else if (pairUpper.includes('OIL') || pairUpper.includes('WTI') || pairUpper.includes('BRENT')) {
+          pl = (exit - entry) * 1000 * lots;
+        } else {
+          pl = (exit - entry) * 5000 * lots;
+        }
+      } else if (isIndexOrCrypto(pairUpper)) {
+        pl = (exit - entry) * lots;
+      } else {
+        // Forex
+        const isJpy = pairUpper.includes('JPY');
+        const pipSize = isJpy ? 0.01 : 0.0001;
+        const pips = (exit - entry) / pipSize;
+        const pipValuePerLot = await calculatePipValue(pairUpper, account.currency || 'USD');
+        pl = pips * pipValuePerLot * lots;
+      }
 
-    // Adjust for Buy/Sell
-    if (trade.type === 'sell') {
-      pl = -pl;
-    }
+      // Adjust for Buy/Sell
+      if (trade.type === 'sell') {
+        pl = -pl;
+      }
 
-    // Subtract additional loss
-    pl -= addLoss;
+      // Subtract additional loss
+      pl -= addLoss;
 
-    setCalculatedPL(Math.round(pl * 100) / 100);
-  }, [exitPrice, additionalLoss, trade, isOpen]);
+      setCalculatedPL(Math.round(pl * 100) / 100);
+    };
+
+    calculatePL();
+  }, [exitPrice, additionalLoss, trade, isOpen, account.currency]);
 
   if (!isOpen) return null;
 

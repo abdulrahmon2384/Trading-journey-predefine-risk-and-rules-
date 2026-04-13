@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Account, Trade } from '../types';
 import ImageCropper from './ImageCropper';
+import { calculatePipValue, isIndexOrCrypto, isCommodity } from '../services/forexService';
 
 interface AddTradeDialogProps {
   isOpen: boolean;
@@ -105,84 +106,100 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
 
   // Lot Size and Actual Risk Calculation Logic
   useEffect(() => {
-    if (!isOpen || !account || !entryPrice || !stopLoss || !currentPair) {
-      setLotSize(null);
-      setActualRisk(null);
-      setWarning(null);
-      return;
-    }
-
-    const entry = parseFloat(entryPrice);
-    const sl = parseFloat(stopLoss);
-    const targetRisk = riskAmount;
-    
-    if (isNaN(entry) || isNaN(sl)) {
-      setLotSize(null);
-      setActualRisk(null);
-      return;
-    }
-
-    if (targetRisk <= 0) {
-      setLotSize(null);
-      setActualRisk(null);
-      setWarning("Risk amount must be greater than 0.");
-      return;
-    }
-
-    const diff = Math.abs(entry - sl);
-    if (diff === 0) {
-      setLotSize(null);
-      setActualRisk(null);
-      setWarning("Entry and SL cannot be the same");
-      return;
-    }
-
-    let calculatedLots = 0;
-    const pairUpper = currentPair.toUpperCase();
-
-    // Determine Asset Class and Contract Size
-    if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
-      calculatedLots = targetRisk / (100 * diff);
-    } else if (pairUpper.includes('OIL') || pairUpper.includes('WTI') || pairUpper.includes('BRENT')) {
-      calculatedLots = targetRisk / (1000 * diff);
-    } else if (pairUpper.includes('NAS') || pairUpper.includes('SPX') || pairUpper.includes('US30') || pairUpper.includes('GER40') || pairUpper.includes('BTC') || pairUpper.includes('ETH') || pairUpper.includes('CRYPTO')) {
-      calculatedLots = targetRisk / diff;
-    } else {
-      // Forex
-      const isJpy = pairUpper.includes('JPY');
-      const pipValue = isJpy ? 0.01 : 0.0001;
-      const pips = diff / pipValue;
-      const pipValuePerLot = 10; 
-      calculatedLots = targetRisk / (pips * pipValuePerLot);
-    }
-
-    const finalLots = Math.floor(calculatedLots * 100) / 100;
-    
-    if (finalLots < 0.01) {
-      setLotSize(0);
-      setActualRisk(0);
-      setWarning(`Risk too low for ${pairUpper}. Min lot 0.01.`);
-    } else {
-      setLotSize(finalLots);
-      
-      // Calculate ACTUAL risk based on rounded lots
-      let actual = 0;
-      if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
-        actual = finalLots * 100 * diff;
-      } else if (pairUpper.includes('OIL') || pairUpper.includes('WTI') || pairUpper.includes('BRENT')) {
-        actual = finalLots * 1000 * diff;
-      } else if (pairUpper.includes('NAS') || pairUpper.includes('SPX') || pairUpper.includes('US30') || pairUpper.includes('GER40') || pairUpper.includes('BTC') || pairUpper.includes('ETH') || pairUpper.includes('CRYPTO')) {
-        actual = finalLots * diff;
-      } else {
-        const isJpy = pairUpper.includes('JPY');
-        const pipValue = isJpy ? 0.01 : 0.0001;
-        const pips = diff / pipValue;
-        actual = finalLots * pips * 10;
+    const calculateLots = async () => {
+      if (!isOpen || !account || !entryPrice || !stopLoss || !currentPair) {
+        setLotSize(null);
+        setActualRisk(null);
+        setWarning(null);
+        return;
       }
-      setActualRisk(Math.round(actual * 100) / 100);
-      setWarning(null);
-    }
-  }, [entryPrice, stopLoss, currentPair, isOpen, account]);
+
+      const entry = parseFloat(entryPrice);
+      const sl = parseFloat(stopLoss);
+      const targetRisk = riskAmount;
+      
+      if (isNaN(entry) || isNaN(sl)) {
+        setLotSize(null);
+        setActualRisk(null);
+        return;
+      }
+
+      if (targetRisk <= 0) {
+        setLotSize(null);
+        setActualRisk(null);
+        setWarning("Risk amount must be greater than 0.");
+        return;
+      }
+
+      const diff = Math.abs(entry - sl);
+      if (diff === 0) {
+        setLotSize(null);
+        setActualRisk(null);
+        setWarning("Entry and SL cannot be the same");
+        return;
+      }
+
+      let calculatedLots = 0;
+      const pairUpper = currentPair.toUpperCase();
+
+      // Determine Asset Class and Contract Size
+      if (isCommodity(pairUpper)) {
+        if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
+          calculatedLots = targetRisk / (100 * diff);
+        } else if (pairUpper.includes('OIL') || pairUpper.includes('WTI') || pairUpper.includes('BRENT')) {
+          calculatedLots = targetRisk / (1000 * diff);
+        } else {
+          // Other commodities (Silver, etc.)
+          calculatedLots = targetRisk / (5000 * diff);
+        }
+      } else if (isIndexOrCrypto(pairUpper)) {
+        calculatedLots = targetRisk / diff;
+      } else {
+        // Forex
+        const isJpy = pairUpper.includes('JPY');
+        const pipSize = isJpy ? 0.01 : 0.0001;
+        const pips = diff / pipSize;
+        
+        // Use the new service for accurate pip value
+        const pipValuePerLot = await calculatePipValue(pairUpper, account.currency || 'USD');
+        calculatedLots = targetRisk / (pips * pipValuePerLot);
+      }
+
+      const finalLots = Math.floor(calculatedLots * 100) / 100;
+      
+      if (finalLots < 0.01) {
+        setLotSize(0);
+        setActualRisk(0);
+        setWarning(`Risk too low for ${pairUpper}. Min lot 0.01.`);
+      } else {
+        setLotSize(finalLots);
+        
+        // Calculate ACTUAL risk based on rounded lots
+        let actual = 0;
+        if (isCommodity(pairUpper)) {
+          if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
+            actual = finalLots * 100 * diff;
+          } else if (pairUpper.includes('OIL') || pairUpper.includes('WTI') || pairUpper.includes('BRENT')) {
+            actual = finalLots * 1000 * diff;
+          } else {
+            actual = finalLots * 5000 * diff;
+          }
+        } else if (isIndexOrCrypto(pairUpper)) {
+          actual = finalLots * diff;
+        } else {
+          const isJpy = pairUpper.includes('JPY');
+          const pipSize = isJpy ? 0.01 : 0.0001;
+          const pips = diff / pipSize;
+          const pipValuePerLot = await calculatePipValue(pairUpper, account.currency || 'USD');
+          actual = finalLots * pips * pipValuePerLot;
+        }
+        setActualRisk(Math.round(actual * 100) / 100);
+        setWarning(null);
+      }
+    };
+
+    calculateLots();
+  }, [entryPrice, stopLoss, currentPair, isOpen, account, riskAmount]);
 
   if (!isOpen) return null;
 
