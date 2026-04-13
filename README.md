@@ -1,20 +1,62 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Trading Journal Pro
 
-# Run and deploy your AI Studio app
+Professional trading journal and risk management suite designed for traders who demand precision and clarity.
 
-This contains everything you need to run your app locally.
+**Live Application:** [https://journey-s2fk.onrender.com](https://journey-s2fk.onrender.com)
 
-View your app in AI Studio: https://ai.studio/apps/5fb5000c-1447-4f9d-8d48-bb1186e9b859
+## Features
 
-## Run Locally
+- **Multi-Account Management**: Track different trading strategies or funding sources in separate accounts.
+- **Trade Logging**: Detailed logging for every trade including entry/exit, position sizing, and P&L.
+- **Risk Management**: Automatic calculation of risk-to-reward ratios and drawdown tracking.
+- **Performance Analytics**: Visual insights into your trading performance over time.
+- **PWA Support**: Install the application on your mobile device or desktop for a native-like experience.
+- **Real-time Sync**: Powered by Supabase for instant data persistence across all your devices.
 
-**Prerequisites:**  Node.js
+## Tech Stack
 
+- **Frontend**: React 18 with TypeScript
+- **Styling**: Tailwind CSS
+- **Database & Auth**: Supabase
+- **Deployment**: Render
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v18 or higher)
+- Supabase Account
+
+### Environment Setup
+
+Create a `.env` file in the root directory and add your Supabase credentials:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Deployment
+
+This project is optimized for deployment on **Render**.
+
+1. Connect your GitHub repository to Render.
+2. Create a new **Static Site**.
+3. Set the **Build Command** to `npm run build`.
+4. Set the **Publish Directory** to `dist`.
+5. Add your environment variables in the Render dashboard.
+
+---
+*Built for traders, by traders.*
