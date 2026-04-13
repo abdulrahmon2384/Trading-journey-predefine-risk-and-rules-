@@ -63,7 +63,7 @@ export default function Layout({ children, user, onLogout }: LayoutProps) {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-12 flex-grow w-full">
+      <main className={`max-w-5xl mx-auto px-4 flex-grow w-full flex flex-col ${!user ? 'justify-center' : 'py-12'}`}>
         {children}
       </main>
 

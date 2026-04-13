@@ -31,8 +31,8 @@ export default function Auth({ onLogin, onSignUp }: AuthProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white font-serif">
-      <div className="w-full max-w-[300px] text-center space-y-8">
+    <div className="flex flex-col items-center justify-center w-full">
+      <div className="w-full max-w-[320px] text-center space-y-10 py-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
             <div className="border border-black p-2 text-[10px] uppercase text-red-600 bg-red-50">
