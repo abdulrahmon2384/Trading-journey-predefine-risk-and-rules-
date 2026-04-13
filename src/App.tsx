@@ -132,6 +132,9 @@ export default function App() {
       if (error) throw error;
     } catch (error: any) {
       console.error("Login error:", error.message);
+      if (error.message === 'Failed to fetch') {
+        throw new Error("Connection Error: Could not connect to the database. Please check your internet connection and Supabase URL in settings.");
+      }
       if (error.message.includes("Email not confirmed")) {
         const resend = window.confirm("Email not confirmed. Would you like us to resend the confirmation link?");
         if (resend) {
@@ -166,6 +169,9 @@ export default function App() {
       alert("Check your email for the confirmation link!");
     } catch (error: any) {
       console.error("Sign up error:", error.message);
+      if (error.message === 'Failed to fetch') {
+        throw new Error("Connection Error: Could not connect to the database. Please check your internet connection and Supabase URL in settings.");
+      }
       throw error;
     }
   };
