@@ -291,6 +291,7 @@ export default function TradeList({ account, trades, withdrawals, onBack, onAddT
             accountType={account.type}
             defaultDrawdownType={account.drawdownType}
             defaultDrawdownValue={account.drawdownValue || account.maxDrawdown}
+            openRisk={trades.filter(t => t.status === 'open').reduce((sum, t) => sum + (t.riskAmount || 0), 0)}
           />
         </TabsContent>
 

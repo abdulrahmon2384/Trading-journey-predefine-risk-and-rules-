@@ -59,7 +59,8 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
       else if (effectiveBalance >= 440) risk = 40;
       else if (effectiveBalance >= 220) risk = 20;
       else if (effectiveBalance >= 110) risk = 10;
-      else if (effectiveBalance >= 50) risk = 5;
+      else if (effectiveBalance >= 15) risk = 5;
+      else risk = 2.5;
       
       return { edd: 0, risk, remainingDDPercent: 0, remainingDDAmount: effectiveBalance, openRisk: openRiskTotal };
     }
@@ -459,7 +460,7 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
                   {account.type === 'prop' ? (
                     <>Tier: {remainingDDPercent >= 10 ? '10%+' : remainingDDPercent >= 6 ? '6%+' : remainingDDPercent >= 3 ? '3%+' : '<3%'} ({((riskAmount / eddAmount) * 100).toFixed(2)}% of EDD)</>
                   ) : (
-                    <>Live Tier: {account.currentBalance >= 1660 ? '1660+' : account.currentBalance >= 880 ? '880+' : account.currentBalance >= 440 ? '440+' : account.currentBalance >= 220 ? '220+' : account.currentBalance >= 110 ? '110+' : account.currentBalance >= 50 ? '50+' : '<50'}</>
+                    <>Live Tier: {riskCalculation.remainingDDAmount >= 1660 ? '1660+' : riskCalculation.remainingDDAmount >= 880 ? '880+' : riskCalculation.remainingDDAmount >= 440 ? '440+' : riskCalculation.remainingDDAmount >= 220 ? '220+' : riskCalculation.remainingDDAmount >= 110 ? '110+' : riskCalculation.remainingDDAmount >= 15 ? '15+' : '<15'}</>
                   )}
                 </p>
               </div>

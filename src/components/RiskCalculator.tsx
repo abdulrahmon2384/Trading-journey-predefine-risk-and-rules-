@@ -7,6 +7,7 @@ interface RiskCalculatorProps {
   accountType?: 'prop' | 'live' | 'prop-live';
   defaultDrawdownType?: DrawdownType;
   defaultDrawdownValue?: number;
+  openRisk?: number;
 }
 
 type DrawdownType = 'percentage' | 'fixed' | 'trailing';
@@ -17,7 +18,8 @@ export default function RiskCalculator({
   currency, 
   accountType = 'prop',
   defaultDrawdownType = 'percentage',
-  defaultDrawdownValue = 10 
+  defaultDrawdownValue = 10,
+  openRisk = 0
 }: RiskCalculatorProps) {
   const [drawdownType, setDrawdownType] = useState<DrawdownType>(defaultDrawdownType);
   const [drawdownValue, setDrawdownValue] = useState<string>(defaultDrawdownValue.toString());
@@ -25,6 +27,8 @@ export default function RiskCalculator({
 
   const isLive = accountType === 'live';
   const isPropLive = accountType === 'prop-live';
+
+  const effectiveBalance = currentBalance - openRisk;
 
   const propTiers = [
     { name: 'Tier 1 (10%+)', threshold: 10, riskFactor: 0.30, basePercent: 0.10, label: 'Safe' },
@@ -39,8 +43,8 @@ export default function RiskCalculator({
     { name: 'Tier 440+', threshold: 440, risk: 40, label: 'Safe' },
     { name: 'Tier 220+', threshold: 220, risk: 20, label: 'Caution' },
     { name: 'Tier 110+', threshold: 110, risk: 10, label: 'Caution' },
-    { name: 'Tier 50+', threshold: 50, risk: 5, label: 'Warning' },
-    { name: 'Tier <50', threshold: 0, risk: 2.5, label: 'Critical' },
+    { name: 'Tier 15+', threshold: 15, risk: 5, label: 'Warning' },
+    { name: 'Tier <15', threshold: 0, risk: 2.5, label: 'Critical' },
   ];
 
   const exampleAccounts = [5000, 10000, 25000, 50000, 100000, 200000, 300000, 400000, 500000, 1000000];
@@ -64,17 +68,17 @@ export default function RiskCalculator({
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   };
 
-  const remainingDDAmount = (currentBalance - initialBalance) + edd;
+  const remainingDDAmount = (currentBalance - initialBalance) + edd - openRisk;
   const remainingDDPercent = (remainingDDAmount / initialBalance) * 100;
 
   const currentPropTier = propTiers.find(t => remainingDDPercent >= t.threshold) || propTiers[propTiers.length - 1];
-  const currentLiveTier = liveTiers.find(t => currentBalance >= t.threshold) || liveTiers[liveTiers.length - 1];
+  const currentLiveTier = liveTiers.find(t => effectiveBalance >= t.threshold) || liveTiers[liveTiers.length - 1];
   
   // Prop Live Logic
   const maxDDPercent = defaultDrawdownValue; // Using the drawdown value set for the account
   const initialDDAmount = initialBalance * (maxDDPercent / 100);
   const propLiveProfit = currentBalance - initialBalance;
-  const availableBuffer = initialDDAmount + propLiveProfit;
+  const availableBuffer = (initialDDAmount + propLiveProfit) - openRisk;
   const propLiveThreshold = initialDDAmount * 0.60;
   
   let propLiveRisk = 0;
@@ -171,7 +175,11 @@ export default function RiskCalculator({
         <div className="border border-black p-4 space-y-4">
           <div className="space-y-1">
             <h3 className="text-sm font-bold uppercase">Live Risk Recommendation</h3>
-            <p className="text-[9px] opacity-50 uppercase">Based on your current balance: {formatCurrency(currentBalance)}</p>
+            <p className="text-[9px] opacity-50 uppercase">
+              Balance: {formatCurrency(currentBalance)} 
+              {openRisk > 0 && ` • Open Risk: ${formatCurrency(openRisk)}`}
+              {openRisk > 0 && ` • Effective: ${formatCurrency(effectiveBalance)}`}
+            </p>
           </div>
           <div className="bg-black text-white p-4 border border-black space-y-2">
             <div className="flex justify-between items-center">
@@ -193,7 +201,11 @@ export default function RiskCalculator({
         <div className="border border-black p-4 space-y-4">
           <div className="space-y-1">
             <h3 className="text-sm font-bold uppercase">Prop Live Risk Recommendation</h3>
-            <p className="text-[9px] opacity-50 uppercase">Based on your current buffer: {formatCurrency(availableBuffer)}</p>
+            <p className="text-[9px] opacity-50 uppercase">
+              Buffer: {formatCurrency(initialDDAmount + propLiveProfit)}
+              {openRisk > 0 && ` • Open Risk: ${formatCurrency(openRisk)}`}
+              {openRisk > 0 && ` • Effective: ${formatCurrency(availableBuffer)}`}
+            </p>
           </div>
           <div className="bg-black text-white p-4 border border-black space-y-2">
             <div className="flex justify-between items-center">
