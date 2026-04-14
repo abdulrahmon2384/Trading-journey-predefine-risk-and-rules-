@@ -40,22 +40,28 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
 
   // Calculate Effective Drawdown (EDD) and Risk Amount based on Account Type
   const riskCalculation = React.useMemo(() => {
-    if (!account) return { edd: 0, risk: 0, remainingDDPercent: 0, remainingDDAmount: 0 };
+    if (!account) return { edd: 0, risk: 0, remainingDDPercent: 0, remainingDDAmount: 0, openRisk: 0 };
     
     const initialBalance = account.initialBalance;
     const currentBalance = account.currentBalance;
 
+    // Calculate total risk of currently open trades
+    const openTrades = trades?.filter(t => t.status === 'open') || [];
+    const openRiskTotal = openTrades.reduce((sum, t) => sum + (t.riskAmount || 0), 0);
+
     // LIVE ACCOUNT CALCULATION
     if (account.type === 'live') {
+      // Deduct open risk from current balance for tier calculation
+      const effectiveBalance = currentBalance - openRiskTotal;
       let risk = 2.5;
-      if (currentBalance >= 1660) risk = 160;
-      else if (currentBalance >= 880) risk = 80;
-      else if (currentBalance >= 440) risk = 40;
-      else if (currentBalance >= 220) risk = 20;
-      else if (currentBalance >= 110) risk = 10;
-      else if (currentBalance >= 50) risk = 5;
+      if (effectiveBalance >= 1660) risk = 160;
+      else if (effectiveBalance >= 880) risk = 80;
+      else if (effectiveBalance >= 440) risk = 40;
+      else if (effectiveBalance >= 220) risk = 20;
+      else if (effectiveBalance >= 110) risk = 10;
+      else if (effectiveBalance >= 50) risk = 5;
       
-      return { edd: 0, risk, remainingDDPercent: 0, remainingDDAmount: currentBalance };
+      return { edd: 0, risk, remainingDDPercent: 0, remainingDDAmount: effectiveBalance, openRisk: openRiskTotal };
     }
     
     // PROP LIVE ACCOUNT CALCULATION
@@ -63,7 +69,8 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
       const maxDDPercent = account.maxDrawdown || 10;
       const initialDDAmount = initialBalance * (maxDDPercent / 100);
       const profit = currentBalance - initialBalance;
-      const availableBuffer = initialDDAmount + profit;
+      // Deduct open risk from available buffer
+      const availableBuffer = (initialDDAmount + profit) - openRiskTotal;
       const threshold = initialDDAmount * 0.60;
       
       let risk = 0;
@@ -72,7 +79,7 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
       } else {
         risk = availableBuffer * 0.10;
       }
-      return { edd: 0, risk, remainingDDPercent: 0, remainingDDAmount: currentBalance };
+      return { edd: 0, risk, remainingDDPercent: 0, remainingDDAmount: availableBuffer, openRisk: openRiskTotal };
     }
     
     // PROP ACCOUNT CALCULATION (Existing Logic)
@@ -81,8 +88,8 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
     // 1. Calculate Initial Drawdown Amount (EDD)
     const edd = initialBalance * (maxDDPercent / 100);
     
-    // 2. Calculate Amount Remaining in Drawdown
-    const remainingDDAmount = (currentBalance - initialBalance) + edd;
+    // 2. Calculate Amount Remaining in Drawdown (Deducting open risk)
+    const remainingDDAmount = (currentBalance - initialBalance) + edd - openRiskTotal;
     const remainingDDPercent = (remainingDDAmount / initialBalance) * 100;
 
     // 3. Determine Risk based on Tiers
@@ -97,12 +104,13 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
       risk = 0.0066 * initialBalance;
     }
     
-    return { edd, risk, remainingDDPercent, remainingDDAmount };
-  }, [account]);
+    return { edd, risk, remainingDDPercent, remainingDDAmount, openRisk: openRiskTotal };
+  }, [account, trades]);
 
   const riskAmount = Math.round(riskCalculation.risk * 100) / 100;
   const eddAmount = riskCalculation.edd;
   const remainingDDPercent = riskCalculation.remainingDDPercent;
+  const openRiskTotal = riskCalculation.openRisk;
 
   // Lot Size and Actual Risk Calculation Logic
   useEffect(() => {
@@ -401,28 +409,44 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
             </div>
 
             <div className="p-2 border border-black bg-[#f9f9f9] space-y-2">
-              {account.type === 'prop' ? (
+              {account.type === 'prop' || account.type === 'prop-live' ? (
                 <>
                   <div className="flex justify-between items-center border-b border-black/10 pb-1">
-                    <span className="text-[8px] uppercase opacity-50">Remaining Margin:</span>
+                    <span className="text-[8px] uppercase opacity-50">Open Trades Risk:</span>
+                    <span className="text-[10px] font-bold text-orange-600">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(openRiskTotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-black/10 pb-1">
+                    <span className="text-[8px] uppercase opacity-50">Remaining Margin (Adjusted):</span>
                     <span className={`text-[10px] font-bold ${riskCalculation.remainingDDAmount < 0 ? 'text-red-600' : ''}`}>
                       {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(riskCalculation.remainingDDAmount)}
                     </span>
                   </div>
+                  {account.type === 'prop' && (
+                    <div className="flex justify-between items-center border-b border-black/10 pb-1">
+                      <span className="text-[8px] uppercase opacity-50">Effective Drawdown (EDD):</span>
+                      <span className="text-[10px] font-bold">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(eddAmount)}
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
                   <div className="flex justify-between items-center border-b border-black/10 pb-1">
-                    <span className="text-[8px] uppercase opacity-50">Effective Drawdown (EDD):</span>
+                    <span className="text-[8px] uppercase opacity-50">Open Trades Risk:</span>
+                    <span className="text-[10px] font-bold text-orange-600">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(openRiskTotal)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-black/10 pb-1">
+                    <span className="text-[8px] uppercase opacity-50">Effective Balance:</span>
                     <span className="text-[10px] font-bold">
-                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(eddAmount)}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(account.currentBalance - openRiskTotal)}
                     </span>
                   </div>
                 </>
-              ) : (
-                <div className="flex justify-between items-center border-b border-black/10 pb-1">
-                  <span className="text-[8px] uppercase opacity-50">Current Balance:</span>
-                  <span className="text-[10px] font-bold">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: account?.currency || 'USD' }).format(account.currentBalance)}
-                  </span>
-                </div>
               )}
               <div className="flex justify-between items-center">
                 <span className="text-[8px] uppercase opacity-50">Actual Risk with {lotSize || 0} Lots:</span>
