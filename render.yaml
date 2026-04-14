@@ -1,15 +1,13 @@
 services:
-  - type: static
+  - type: web
     name: trading-journal-app
-    env: static
-    buildCommand: npm run build
-    publishPath: dist
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     envVars:
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: NODE_ENV
+        value: production

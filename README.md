@@ -50,13 +50,24 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## Deployment
 
-This project is optimized for deployment on **Render**.
+This project is optimized for deployment on **Render** as a **Web Service**.
 
 1. Connect your GitHub repository to Render.
-2. Create a new **Static Site**.
-3. Set the **Build Command** to `npm run build`.
-4. Set the **Publish Directory** to `dist`.
-5. Add your environment variables in the Render dashboard.
+2. Create a new **Web Service**.
+3. Set the **Build Command** to `npm install && npm run build`.
+4. Set the **Start Command** to `npm start`.
+5. Add your environment variables in the Render dashboard:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `NODE_ENV`: `production`
+
+### Database Keep-Alive (Uptime Robot)
+
+To prevent your Supabase database from pausing and keep your Render instance awake, you can use a service like **Uptime Robot** to monitor the following endpoint:
+
+`https://your-app-name.onrender.com/api/health`
+
+This endpoint performs a real database query every time it is called, ensuring your project stays active.
 
 ---
 *Built for traders, by traders.*
