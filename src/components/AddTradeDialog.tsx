@@ -311,6 +311,9 @@ export default function AddTradeDialog({ isOpen, onClose, onAdd, account, trades
                   <option value="SPX500">SPX500</option>
                   <option value="XAUUSD">GOLD (XAUUSD)</option>
                   <option value="USOIL">USOIL</option>
+                  <option value="BTCUSD">BTCUSD</option>
+                  <option value="ETHUSD">ETHUSD</option>
+                  <option value="SOLUSD">SOLUSD</option>
                   <option value="CUSTOM">CUSTOM...</option>
                 </select>
                 {selectedPair === 'CUSTOM' && (

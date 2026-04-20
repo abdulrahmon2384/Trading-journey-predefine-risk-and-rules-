@@ -80,7 +80,7 @@ export async function calculatePipValue(pair: string, accountCurrency: string = 
 export function isIndexOrCrypto(pair: string): boolean {
   const p = pair.toUpperCase();
   const indices = ['NAS', 'SPX', 'US30', 'GER', 'DAX', 'UK100', 'JPN225', 'EUSTX50'];
-  const cryptos = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOT', 'DOGE'];
+  const cryptos = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOT', 'DOGE', 'USDT'];
   
   return indices.some(i => p.includes(i)) || cryptos.some(c => p.includes(c));
 }
