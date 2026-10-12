@@ -14,22 +14,28 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Supabase client for health check
+  // Supabase client for health check (only if real credentials provided)
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-  const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+  const isConfigured = Boolean(
+    supabaseUrl &&
+    supabaseKey &&
+    supabaseKey !== 'your-anon-key' &&
+    !supabaseKey.includes('X-X-X-X') &&
+    supabaseKey.length > 20
+  );
+  const supabase = isConfigured ? createClient(supabaseUrl!, supabaseKey!) : null;
 
   // API Health Check Endpoint
   app.get("/api/health", async (req, res) => {
     const status: any = {
       status: "ok",
       timestamp: new Date().toISOString(),
-      database: "unknown"
+      database: isConfigured ? "configured" : "not_configured"
     };
 
     if (supabase) {
       try {
-        // Simple query to check database connection
         const { error } = await supabase.from('accounts').select('id').limit(1);
         if (error) throw error;
         status.database = "connected";
@@ -38,8 +44,6 @@ async function startServer() {
         status.error = err.message;
         return res.status(500).json(status);
       }
-    } else {
-      status.database = "not_configured";
     }
 
     res.json(status);

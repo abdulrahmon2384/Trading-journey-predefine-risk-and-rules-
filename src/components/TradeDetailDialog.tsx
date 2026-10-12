@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trade } from '@/src/types';
+import { X, ExternalLink, Calendar, TrendingUp, CheckCircle, Image as ImageIcon } from 'lucide-react';
 
 interface TradeDetailDialogProps {
   isOpen: boolean;
@@ -11,119 +12,164 @@ export default function TradeDetailDialog({ isOpen, onClose, trade }: TradeDetai
   if (!isOpen || !trade) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-white/80 backdrop-blur-sm flex items-center justify-center p-4 font-serif">
-      <div className="w-full max-w-[600px] bg-white border border-black p-6 space-y-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-start border-b border-black pb-4">
-          <div className="space-y-1">
-            <h2 className="text-xl font-bold uppercase">{trade.pair}</h2>
-            <p className="text-[9px] opacity-50 uppercase">
-              {new Date(trade.createdAt || Date.now()).toLocaleString()}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-[9px] border border-black px-1 uppercase">{trade.type}</span>
-            <span className="text-[9px] border border-black px-1 uppercase">{trade.status}</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-0.5 border border-black p-2">
-                <p className="text-[8px] opacity-40 uppercase">Entry</p>
-                <p className="text-sm font-bold">{trade.entryPrice}</p>
+    <div className="fixed inset-0 z-[120] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto font-sans">
+      <div className="w-full max-w-[640px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-5 my-8 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold font-mono text-slate-900">{trade.pair}</h2>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                  trade.type === 'buy' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {trade.type}
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-100 text-slate-700">
+                  {trade.status}
+                </span>
               </div>
-              <div className="space-y-0.5 border border-black p-2">
-                <p className="text-[8px] opacity-40 uppercase">Exit</p>
-                <p className="text-sm font-bold">{trade.exitPrice || '-'}</p>
-              </div>
-              <div className="space-y-0.5 border border-black p-2">
-                <p className="text-[8px] opacity-40 uppercase">Risk</p>
-                <p className="text-sm font-bold">{trade.riskAmount || '-'}</p>
-              </div>
-              <div className="space-y-0.5 border border-black p-2">
-                <p className="text-[8px] opacity-40 uppercase">P/L</p>
-                <p className="text-sm font-bold">
-                  {trade.profitLoss ? (trade.profitLoss > 0 ? `+${trade.profitLoss}` : trade.profitLoss) : '-'}
-                </p>
-              </div>
-              {trade.analysisBy && trade.analysisBy !== 'None' && (
-                <div className="space-y-0.5 border border-black p-2 col-span-2">
-                  <p className="text-[8px] opacity-40 uppercase">Analysis By</p>
-                  <p className="text-sm font-bold uppercase">{trade.analysisBy}</p>
-                </div>
-              )}
+              <p className="text-xs text-slate-400 font-mono mt-0.5 flex items-center gap-1">
+                <Calendar size={12} />
+                <span>{new Date(trade.createdAt || Date.now()).toLocaleString()}</span>
+              </p>
             </div>
-
-            {trade.notes && (
-              <div className="space-y-1 border border-black p-2">
-                <p className="text-[8px] opacity-40 uppercase">Notes</p>
-                <p className="text-[10px] leading-relaxed whitespace-pre-wrap">{trade.notes}</p>
-              </div>
-            )}
           </div>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <p className="text-[8px] opacity-40 uppercase">Before Screenshot</p>
-              {trade.imageUrl ? (
-                <div className="border border-black p-1">
-                  <img 
-                    src={trade.imageUrl} 
-                    alt={`${trade.pair} before`} 
-                    className="w-full h-auto border border-black/10"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="mt-2 text-center">
-                    <a 
-                      href={trade.imageUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[9px] underline uppercase"
-                    >
-                      view full image
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="border border-black py-4 text-center opacity-40">
-                  <p className="text-[9px] uppercase">No before screenshot</p>
-                </div>
-              )}
-            </div>
-
-            {trade.afterImageUrl && (
-              <div className="space-y-2">
-                <p className="text-[8px] opacity-40 uppercase">After Screenshot</p>
-                <div className="border border-black p-1">
-                  <img 
-                    src={trade.afterImageUrl} 
-                    alt={`${trade.pair} after`} 
-                    className="w-full h-auto border border-black/10"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="mt-2 text-center">
-                    <a 
-                      href={trade.afterImageUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-[9px] underline uppercase"
-                    >
-                      view full image
-                    </a>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-black">
           <button 
-            onClick={onClose}
-            className="w-full border border-black px-4 py-1 text-[10px] uppercase hover:bg-[#efefef] transition-colors"
+            type="button" 
+            onClick={onClose} 
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >
-            close
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Matrix of Key Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+            <span className="text-[10px] font-sans font-medium text-slate-400 uppercase tracking-wider block">Entry</span>
+            <span className="text-sm font-bold text-slate-900">{trade.entryPrice}</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+            <span className="text-[10px] font-sans font-medium text-slate-400 uppercase tracking-wider block">Exit Fill</span>
+            <span className="text-sm font-bold text-slate-900">{trade.exitPrice || 'Open'}</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+            <span className="text-[10px] font-sans font-medium text-slate-400 uppercase tracking-wider block">Lot Size</span>
+            <span className="text-sm font-bold text-slate-900">{trade.lotSize || '-'}</span>
+          </div>
+          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+            <span className="text-[10px] font-sans font-medium text-slate-400 uppercase tracking-wider block">Realized P&amp;L</span>
+            <span className={`text-sm font-bold ${
+              trade.profitLoss && trade.profitLoss >= 0 ? 'text-emerald-600' : trade.profitLoss ? 'text-rose-600' : 'text-slate-500'
+            }`}>
+              {trade.profitLoss !== undefined ? `${trade.profitLoss >= 0 ? '+' : ''}$${trade.profitLoss}` : 'Pending'}
+            </span>
+          </div>
+        </div>
+
+        {/* Strategy By & Notes */}
+        <div className="space-y-3">
+          {trade.analysisBy && trade.analysisBy !== 'None' && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Strategy Setup By:</span>
+              <span className="font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-800">
+                {trade.analysisBy}
+              </span>
+            </div>
+          )}
+
+          {trade.notes && (
+            <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Trade Analysis &amp; Confluences
+              </span>
+              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                {trade.notes}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Screenshots Showcase (Before & After) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          {/* Before Screenshot */}
+          <div className="space-y-1.5">
+            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <ImageIcon size={14} className="text-slate-400" />
+              <span>Before Execution</span>
+            </span>
+            {trade.imageUrl ? (
+              <div className="border border-slate-200 rounded-xl p-2 bg-slate-50/50 space-y-2">
+                <img 
+                  src={trade.imageUrl} 
+                  alt={`${trade.pair} before execution`} 
+                  className="w-full h-40 object-cover rounded-lg border border-slate-200" 
+                  referrerPolicy="no-referrer"
+                />
+                <div className="text-right">
+                  <a 
+                    href={trade.imageUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[11px] font-medium text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                  >
+                    <span>Full Resolution</span>
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-slate-200 rounded-xl p-8 text-center text-xs text-slate-400">
+                No before execution screenshot
+              </div>
+            )}
+          </div>
+
+          {/* After Screenshot */}
+          <div className="space-y-1.5">
+            <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <ImageIcon size={14} className="text-slate-400" />
+              <span>After Result</span>
+            </span>
+            {trade.afterImageUrl ? (
+              <div className="border border-slate-200 rounded-xl p-2 bg-slate-50/50 space-y-2">
+                <img 
+                  src={trade.afterImageUrl} 
+                  alt={`${trade.pair} after result`} 
+                  className="w-full h-40 object-cover rounded-lg border border-slate-200" 
+                  referrerPolicy="no-referrer"
+                />
+                <div className="text-right">
+                  <a 
+                    href={trade.afterImageUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-[11px] font-medium text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                  >
+                    <span>Full Resolution</span>
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-slate-200 rounded-xl p-8 text-center text-xs text-slate-400">
+                No exit chart screenshot
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="pt-3 border-t border-slate-100 flex justify-end">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors"
+          >
+            Close Review
           </button>
         </div>
       </div>

@@ -3,11 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Auth from './components/Auth';
@@ -17,21 +12,22 @@ import AddAccountDialog from './components/AddAccountDialog';
 import AddTradeDialog from './components/AddTradeDialog';
 import WithdrawDialog from './components/WithdrawDialog';
 import TradeDetailDialog from './components/TradeDetailDialog';
+import RiskCalculator from './components/RiskCalculator';
 import { Account, Trade, Withdrawal } from './types';
 import { supabase } from './lib/supabase';
 import { 
   subscribeToAccounts, 
-  getAccounts,
+  getAccounts, 
   addAccount, 
   subscribeToTrades, 
-  subscribeToAllUserTrades,
-  subscribeToAllUserWithdrawals,
-  subscribeToWithdrawals,
+  subscribeToAllUserTrades, 
+  subscribeToAllUserWithdrawals, 
+  subscribeToWithdrawals, 
   addTrade, 
-  addWithdrawal,
-  deleteTrade,
-  updateTrade,
-  updateAccount
+  addWithdrawal, 
+  deleteTrade, 
+  updateTrade, 
+  updateAccount 
 } from './lib/supabase-utils';
 
 export default function App() {
@@ -45,19 +41,33 @@ export default function App() {
   const [allWithdrawals, setAllWithdrawals] = useState<Withdrawal[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   
+  const [activeNav, setActiveNav] = useState<'dashboard' | 'trades' | 'risk' | 'accounts'>('dashboard');
+
   const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
   const [isAddTradeOpen, setIsAddTradeOpen] = useState(false);
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
   useEffect(() => {
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // Clear any previous mock keys from browser localStorage
+    if (typeof window !== 'undefined' && window.localStorage) {
+      ['forex_tracker_accounts', 'forex_tracker_trades', 'forex_tracker_withdrawals', 'forex_tracker_user'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
+      });
+    }
 
-    // Listen for auth changes
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setUser(session?.user ?? null);
+      })
+      .catch((err) => {
+        console.warn('Supabase auth session check failed:', err);
+        setUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
@@ -106,7 +116,7 @@ export default function App() {
         setSelectedAccount(updated);
       }
     }
-  }, [accounts]);
+  }, [accounts, selectedAccount]);
 
   useEffect(() => {
     if (user && selectedAccount) {
@@ -128,63 +138,71 @@ export default function App() {
 
   const handleLogin = async (email: string, pass: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
       if (error) throw error;
+      if (data?.session) {
+        setUser(data.session.user);
+      }
     } catch (error: any) {
       console.error("Login error:", error.message);
       if (error.message === 'Failed to fetch') {
-        throw new Error("Connection Error: Could not connect to the database. Please check your internet connection and Supabase URL in settings.");
+        throw new Error("Connection Error: Could not connect to Supabase database. Please check your network and Supabase URL.");
       }
       if (error.message.includes("Email not confirmed")) {
-        const resend = window.confirm("Email not confirmed. Would you like us to resend the confirmation link?");
-        if (resend) {
-          await supabase.auth.resend({
-            type: 'signup',
-            email: email,
-            options: {
-              emailRedirectTo: window.location.origin
-            }
-          });
-          alert("Confirmation email resent. Please check your inbox (and spam).");
-        }
-        throw new Error("Email not confirmed. Please check your inbox.");
-      } else if (error.message.includes("Invalid login credentials")) {
-        throw new Error("Invalid email or password.");
-      } else {
-        throw error;
-      }
-    }
-  };
-
-  const handleSignUp = async (email: string, pass: string) => {
-    try {
-      const { error } = await supabase.auth.signUp({ 
-        email, 
-        password: pass,
-        options: {
-          emailRedirectTo: window.location.origin
-        }
-      });
-      if (error) throw error;
-      alert("Check your email for the confirmation link!");
-    } catch (error: any) {
-      console.error("Sign up error:", error.message);
-      if (error.message === 'Failed to fetch') {
-        throw new Error("Connection Error: Could not connect to the database. Please check your internet connection and Supabase URL in settings.");
+        throw new Error(
+          "Email confirmation is enabled in your Supabase project. To allow instant login: In your Supabase Dashboard, go to Authentication -> Providers -> Email -> turn OFF 'Confirm email' and click Save."
+        );
       }
       throw error;
     }
   };
 
-  const handleLogout = () => supabase.auth.signOut();
+  const handleSignUp = async (email: string, pass: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password: pass,
+      });
+      if (error) throw error;
+
+      if (data?.session?.user) {
+        setUser(data.session.user);
+        return;
+      }
+
+      // If email confirmation is disabled on Supabase, log in directly
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password: pass
+      });
+
+      if (!loginError && loginData?.session?.user) {
+        setUser(loginData.session.user);
+        return;
+      }
+
+      if (loginError && loginError.message.includes("Email not confirmed")) {
+        throw new Error(
+          "Supabase project has 'Confirm email' turned ON: In Supabase Dashboard -> Authentication -> Providers -> Email -> toggle OFF 'Confirm email'. Then users will be created and logged in straight away!"
+        );
+      }
+    } catch (error: any) {
+      console.error("Sign up error:", error.message);
+      throw error;
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setSelectedAccount(null);
+  };
 
   const handleAddAccount = async (accountData: any) => {
     try {
-      console.log('Adding account:', accountData);
       const id = await addAccount(accountData);
-      if (!id) throw new Error("Failed to create account record. Are you logged in?");
+      if (!id) throw new Error("Failed to create account record.");
       
-      // Instant refresh
       if (user) {
         const updatedAccounts = await getAccounts(user.id);
         setAccounts(updatedAccounts);
@@ -199,8 +217,9 @@ export default function App() {
   };
 
   const handleAddTrade = async (tradeData: any) => {
-    if (selectedAccount) {
-      await addTrade({ ...tradeData, accountId: selectedAccount.id });
+    const acc = selectedAccount || accounts[0];
+    if (acc) {
+      await addTrade({ ...tradeData, accountId: acc.id });
     }
   };
 
@@ -217,25 +236,14 @@ export default function App() {
 
   const handleUpdateTrade = async (tradeId: string, updates: Partial<Trade>) => {
     if (selectedAccount) {
-      console.log('Updating trade:', tradeId, updates);
       await updateTrade(tradeId, updates);
       
-      // If closing trade, update account balance
       if (updates.status === 'closed' && updates.profitLoss !== undefined) {
-        // We use the most up-to-date balance from selectedAccount
         const newBalance = (selectedAccount.currentBalance || 0) + updates.profitLoss;
-        console.log('Closing trade, updating balance:', {
-          old: selectedAccount.currentBalance,
-          profit: updates.profitLoss,
-          new: newBalance
-        });
-        
         try {
           await updateAccount(selectedAccount.id, { currentBalance: newBalance });
-          // The subscription in useEffect will handle updating the state
         } catch (error) {
           console.error("Failed to update account balance:", error);
-          alert("Trade closed but failed to update account balance. Please refresh.");
         }
       }
     }
@@ -252,24 +260,80 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center font-serif">
-        <div className="text-[10px] uppercase tracking-widest animate-pulse">loading...</div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs uppercase font-bold tracking-wider text-slate-500">Connecting to Database...</p>
+        </div>
       </div>
     );
   }
 
-  const isConfigMissing = false;
+  const currentWorkingAccount = selectedAccount || (accounts.length > 0 ? accounts[0] : null);
 
   return (
-    <Layout user={user} onLogout={handleLogout}>
+    <Layout 
+      user={user} 
+      onLogout={handleLogout}
+      accounts={accounts}
+      selectedAccount={selectedAccount}
+      onSelectAccount={(acc) => {
+        setSelectedAccount(acc);
+        if (acc) {
+          setActiveNav('trades');
+        } else {
+          setActiveNav('dashboard');
+        }
+      }}
+      onAddAccount={() => setIsAddAccountOpen(true)}
+      onAddTrade={() => setIsAddTradeOpen(true)}
+      activeNav={activeNav}
+      onNavChange={(nav) => {
+        setActiveNav(nav);
+        if (nav === 'dashboard') {
+          setSelectedAccount(null);
+        } else if (nav === 'trades' && !selectedAccount && accounts.length > 0) {
+          setSelectedAccount(accounts[0]);
+        }
+      }}
+    >
       {!user ? (
         <Auth onLogin={handleLogin} onSignUp={handleSignUp} />
+      ) : activeNav === 'risk' && currentWorkingAccount ? (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Risk Matrix &amp; Capital Protection</h2>
+              <p className="text-xs text-slate-500">Active Account: {currentWorkingAccount.name}</p>
+            </div>
+            <button
+              onClick={() => setActiveNav('dashboard')}
+              className="text-xs font-medium text-slate-600 hover:text-slate-900 underline"
+            >
+              Back to Overview
+            </button>
+          </div>
+          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+            <RiskCalculator 
+              initialBalance={currentWorkingAccount.initialBalance}
+              currentBalance={currentWorkingAccount.currentBalance} 
+              currency={currentWorkingAccount.currency} 
+              accountType={currentWorkingAccount.type}
+              defaultDrawdownType={currentWorkingAccount.drawdownType}
+              defaultDrawdownValue={currentWorkingAccount.drawdownValue || currentWorkingAccount.maxDrawdown}
+              openRisk={trades.filter(t => t.status === 'open').reduce((sum, t) => sum + (t.riskAmount || 0), 0)}
+            />
+          </div>
+        </div>
       ) : selectedAccount ? (
         <TradeList 
           account={selectedAccount} 
           trades={trades}
           withdrawals={withdrawals}
-          onBack={() => setSelectedAccount(null)}
+          onBack={() => {
+            setSelectedAccount(null);
+            setActiveNav('dashboard');
+          }}
           onAddTrade={() => setIsAddTradeOpen(true)}
           onWithdraw={() => setIsWithdrawOpen(true)}
           onDeleteTrade={handleDeleteTrade}
@@ -283,24 +347,32 @@ export default function App() {
           withdrawals={allWithdrawals}
           loading={accountsLoading}
           onAddAccount={() => setIsAddAccountOpen(true)}
-          onSelectAccount={(account) => setSelectedAccount(account)}
+          onSelectAccount={(account) => {
+            setSelectedAccount(account);
+            setActiveNav('trades');
+          }}
         />
       )}
 
+      {/* Add Account Modal */}
       <AddAccountDialog 
         isOpen={isAddAccountOpen} 
         onClose={() => setIsAddAccountOpen(false)} 
         onAdd={handleAddAccount} 
       />
 
-      <AddTradeDialog 
-        isOpen={isAddTradeOpen} 
-        onClose={() => setIsAddTradeOpen(false)} 
-        onAdd={handleAddTrade} 
-        account={selectedAccount!}
-        trades={trades}
-      />
+      {/* Add Trade Modal */}
+      {currentWorkingAccount && (
+        <AddTradeDialog 
+          isOpen={isAddTradeOpen} 
+          onClose={() => setIsAddTradeOpen(false)} 
+          onAdd={handleAddTrade} 
+          account={currentWorkingAccount}
+          trades={trades}
+        />
+      )}
 
+      {/* Withdraw Modal */}
       {selectedAccount && (
         <WithdrawDialog
           isOpen={isWithdrawOpen}
@@ -310,6 +382,7 @@ export default function App() {
         />
       )}
 
+      {/* Trade Detail Modal */}
       <TradeDetailDialog 
         isOpen={!!selectedTrade} 
         onClose={() => setSelectedTrade(null)} 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Trade, Account } from '../types';
 import ImageCropper from './ImageCropper';
 import { calculatePipValue, isIndexOrCrypto, isCommodity } from '../services/forexService';
+import { X, CheckCircle2, Upload, AlertCircle } from 'lucide-react';
 
 interface ConfirmTradeDialogProps {
   isOpen: boolean;
@@ -44,7 +45,6 @@ export default function ConfirmTradeDialog({ isOpen, onClose, onConfirm, trade, 
       let pl = 0;
       const pairUpper = trade.pair.toUpperCase();
 
-      // P/L Calculation Logic (Reverse of Lot Size)
       if (isCommodity(pairUpper)) {
         if (pairUpper.includes('XAU') || pairUpper.includes('GOLD')) {
           pl = (exit - entry) * 100 * lots;
@@ -56,7 +56,6 @@ export default function ConfirmTradeDialog({ isOpen, onClose, onConfirm, trade, 
       } else if (isIndexOrCrypto(pairUpper)) {
         pl = (exit - entry) * lots;
       } else {
-        // Forex
         const isJpy = pairUpper.includes('JPY');
         const pipSize = isJpy ? 0.01 : 0.0001;
         const pips = (exit - entry) / pipSize;
@@ -64,14 +63,11 @@ export default function ConfirmTradeDialog({ isOpen, onClose, onConfirm, trade, 
         pl = pips * pipValuePerLot * lots;
       }
 
-      // Adjust for Buy/Sell
       if (trade.type === 'sell') {
         pl = -pl;
       }
 
-      // Subtract additional loss
       pl -= addLoss;
-
       setCalculatedPL(Math.round(pl * 100) / 100);
     };
 
@@ -97,80 +93,112 @@ export default function ConfirmTradeDialog({ isOpen, onClose, onConfirm, trade, 
       onClose();
     } catch (err: any) {
       console.error("Error confirming trade:", err);
-      setError(err.message || "Failed to confirm trade. Please try again.");
+      setError(err.message || "Failed to close trade.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[110] bg-white/80 backdrop-blur-sm flex items-center justify-center p-4 font-serif">
-      <div className="w-full max-w-[400px] bg-white border border-black p-6 space-y-6">
-        <div className="space-y-1">
-          <h2 className="text-sm font-bold uppercase">Confirm Trade Result</h2>
-          <p className="text-[9px] opacity-50 uppercase">{trade.pair} {trade.type} @ {trade.entryPrice}</p>
+    <div className="fixed inset-0 z-[120] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto font-sans">
+      <div className="w-full max-w-[440px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-150">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Close Position &amp; Realize P&amp;L</h2>
+            <p className="text-xs text-slate-500 font-mono mt-0.5">
+              {trade.pair} · {trade.type.toUpperCase()} @ {trade.entryPrice}
+            </p>
+          </div>
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <X size={16} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="p-3 border border-red-600 bg-red-50 text-red-600 text-[10px] uppercase font-bold">
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
               {error}
             </div>
           )}
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase block">Exit Price (TP/Actual)</label>
-            <input 
-              type="number" step="any" required
-              value={exitPrice} 
-              onChange={(e) => setExitPrice(e.target.value)} 
-              placeholder={trade.takeProfit?.toString() || "1.0900"} 
-              className="w-full border border-black px-2 py-1 text-[10px] focus:outline-none" 
-            />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Exit / Fill Price *</label>
+              <input 
+                type="number" 
+                step="any" 
+                required
+                value={exitPrice} 
+                onChange={(e) => setExitPrice(e.target.value)} 
+                placeholder={trade.takeProfit?.toString() || "1.0900"} 
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white" 
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Fees / Slippage ({account.currency})</label>
+              <input 
+                type="number" 
+                step="any"
+                value={additionalLoss} 
+                onChange={(e) => setAdditionalLoss(e.target.value)} 
+                placeholder="0" 
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white" 
+              />
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase block">Additional Loss/Fees ({account.currency})</label>
-            <input 
-              type="number" step="any"
-              value={additionalLoss} 
-              onChange={(e) => setAdditionalLoss(e.target.value)} 
-              placeholder="0" 
-              className="w-full border border-black px-2 py-1 text-[10px] focus:outline-none" 
-            />
-          </div>
-
-          <div className="p-3 border border-black bg-[#f9f9f9] space-y-1">
-            <label className="text-[8px] uppercase block opacity-50">Calculated Profit/Loss</label>
-            <div className={`text-lg font-bold ${calculatedPL && calculatedPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {/* Calculated Realized P&L Display Card */}
+          <div className="p-4 bg-slate-950 rounded-xl text-center space-y-1">
+            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+              Net Calculated Profit / Loss
+            </span>
+            <div className={`text-2xl font-bold font-mono ${
+              calculatedPL && calculatedPL >= 0 ? 'text-emerald-400' : 'text-rose-400'
+            }`}>
               {calculatedPL !== null 
-                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: account.currency }).format(calculatedPL)
+                ? `${calculatedPL >= 0 ? '+' : ''}${new Intl.NumberFormat('en-US', { style: 'currency', currency: account.currency }).format(calculatedPL)}`
                 : '--'}
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase block">Final Notes</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700">Post-Trade Review &amp; Lessons</label>
             <textarea 
               value={notes} 
               onChange={(e) => setNotes(e.target.value)} 
-              placeholder="How did it go?" 
-              className="w-full border border-black px-2 py-1 text-[10px] focus:outline-none min-h-[60px]" 
+              placeholder="Did you follow the plan? Did emotions play a role?" 
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:bg-white min-h-[55px]" 
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] uppercase block">After Screenshot (Optional)</label>
-            <div className="border border-black p-4 text-center space-y-2">
+          {/* After Screenshot Dropzone */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700">Exit Chart Screenshot (Optional)</label>
+            <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 text-center">
               {afterImageUrl ? (
-                <div className="relative">
-                  <img src={afterImageUrl} alt="After Preview" className="max-h-32 mx-auto border border-black" referrerPolicy="no-referrer" />
-                  <button type="button" onClick={() => setAfterImageUrl('')} className="mt-2 text-[9px] underline uppercase">remove</button>
+                <div className="space-y-2">
+                  <img src={afterImageUrl} alt="After Preview" className="max-h-32 mx-auto rounded-lg border border-slate-200" referrerPolicy="no-referrer" />
+                  <button type="button" onClick={() => setAfterImageUrl('')} className="text-xs text-rose-600 hover:underline font-medium">
+                    Remove
+                  </button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <label className="cursor-pointer text-[10px] underline uppercase block">
-                    {isUploading ? 'uploading...' : 'select file'}
-                    <input type="file" className="hidden" accept="image/*" ref={fileInputRef} onChange={async (e) => {
+                <label className="cursor-pointer flex flex-col items-center justify-center py-2 space-y-1 text-slate-500 hover:text-slate-800 transition-colors">
+                  <Upload size={18} className="text-slate-400" />
+                  <span className="text-xs font-medium">{isUploading ? 'Uploading...' : 'Upload Exit Screenshot'}</span>
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*" 
+                    ref={fileInputRef} 
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setIsUploading(true);
@@ -180,22 +208,29 @@ export default function ConfirmTradeDialog({ isOpen, onClose, onConfirm, trade, 
                         setIsUploading(false);
                       };
                       reader.readAsDataURL(file);
-                    }} disabled={isUploading} />
-                  </label>
-                  <p className="text-[8px] opacity-40 uppercase">PNG, JPG up to 1MB</p>
-                </div>
+                    }} 
+                    disabled={isUploading} 
+                  />
+                </label>
               )}
             </div>
           </div>
 
-          <div className="pt-2 flex gap-2">
-            <button type="button" onClick={onClose} className="flex-1 border border-black px-4 py-1 text-[10px] uppercase hover:bg-[#efefef] transition-colors">cancel</button>
+          {/* Footer Buttons */}
+          <div className="pt-2 border-t border-slate-100 flex gap-2.5">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
             <button 
               type="submit" 
-              className="flex-1 border border-black bg-black text-white px-4 py-1 text-[10px] uppercase hover:bg-black/80 transition-colors disabled:opacity-50" 
               disabled={isUploading || isSubmitting}
+              className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors disabled:opacity-50"
             >
-              {isSubmitting ? 'confirming...' : isUploading ? 'wait...' : 'confirm & close'}
+              {isSubmitting ? 'Confirming...' : 'Close & Record PnL'}
             </button>
           </div>
         </form>

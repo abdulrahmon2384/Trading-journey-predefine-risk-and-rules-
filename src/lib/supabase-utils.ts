@@ -1,11 +1,7 @@
 import { supabase } from './supabase';
-import * as mock from './mock-storage';
-
-const isConfigMissing = false;
 
 // Account Operations
 export const getAccounts = async (userId: string) => {
-  if (isConfigMissing) return [];
   try {
     const { data, error } = await supabase
       .from('accounts')
@@ -25,8 +21,6 @@ export const getAccounts = async (userId: string) => {
 };
 
 export const subscribeToAccounts = (userId: string, callback: (accounts: any[]) => void) => {
-  if (isConfigMissing) return mock.mockSubscribeToAccounts(callback);
-
   const fetchAccounts = async () => {
     const accounts = await getAccounts(userId);
     callback(accounts);
@@ -34,16 +28,12 @@ export const subscribeToAccounts = (userId: string, callback: (accounts: any[]) 
 
   fetchAccounts();
 
-  // Real-time subscription with unique channel name
   const subscription = supabase
     .channel(`accounts_${userId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts', filter: `userId=eq.${userId}` }, (payload) => {
-      console.log('Account change detected:', payload);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'accounts', filter: `userId=eq.${userId}` }, () => {
       fetchAccounts();
     })
-    .subscribe((status) => {
-      console.log(`Accounts subscription status for ${userId}:`, status);
-    });
+    .subscribe();
 
   return () => {
     supabase.removeChannel(subscription);
@@ -51,17 +41,12 @@ export const subscribeToAccounts = (userId: string, callback: (accounts: any[]) 
 };
 
 export const addAccount = async (accountData: any) => {
-  if (isConfigMissing) return mock.mockAddAccount(accountData);
-
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    console.error('No authenticated user found when adding account');
-    return null;
+    throw new Error("No authenticated user found. Please log in first.");
   }
 
-  console.log('Inserting account for user:', user.id, accountData);
-
-  // Remove any undefined fields that might cause Supabase to choke
+  // Remove any undefined fields
   const cleanData = Object.fromEntries(
     Object.entries(accountData).filter(([_, v]) => v !== undefined)
   );
@@ -74,24 +59,13 @@ export const addAccount = async (accountData: any) => {
 
   if (error) {
     console.error('Supabase error adding account:', error);
-    // If it's a 404, the table might be missing
-    if (error.code === '42P01') {
-      throw new Error("Database table 'accounts' not found. Please run the SQL script in your Supabase dashboard.");
-    }
-    // If it's a 42703, a column is missing
-    if (error.code === '42703') {
-      throw new Error(`Database column missing: ${error.message}. Please re-run the SQL script.`);
-    }
     throw error;
   }
   
-  console.log('Account created successfully:', data.id);
   return data.id;
 };
 
 export const deleteAccount = async (accountId: string) => {
-  if (isConfigMissing) return; // Mock delete not implemented for accounts yet
-
   const { error } = await supabase
     .from('accounts')
     .delete()
@@ -104,9 +78,6 @@ export const deleteAccount = async (accountId: string) => {
 };
 
 export const updateAccount = async (accountId: string, updates: any) => {
-  if (isConfigMissing) return;
-
-  // Remove any undefined fields
   const cleanData = Object.fromEntries(
     Object.entries(updates).filter(([_, v]) => v !== undefined)
   );
@@ -117,18 +88,13 @@ export const updateAccount = async (accountId: string, updates: any) => {
     .eq('id', accountId);
 
   if (error) {
-    console.error('Error updating account:', error);
-    if (error.code === '42703') {
-      throw new Error(`Database column missing in accounts table: ${error.message}`);
-    }
+    console.error('Error updating account in Supabase:', error);
     throw error;
   }
 };
 
 // Trade Operations
 export const subscribeToTrades = (accountId: string, callback: (trades: any[]) => void) => {
-  if (isConfigMissing) return mock.mockSubscribeToTrades(accountId, callback);
-
   const fetchTrades = async () => {
     try {
       const { data, error } = await supabase
@@ -139,11 +105,13 @@ export const subscribeToTrades = (accountId: string, callback: (trades: any[]) =
       
       if (error) {
         console.error('Error fetching trades:', error);
+        callback([]);
         return;
       }
       callback(data || []);
     } catch (err) {
       console.error('Unexpected error fetching trades:', err);
+      callback([]);
     }
   };
 
@@ -151,13 +119,10 @@ export const subscribeToTrades = (accountId: string, callback: (trades: any[]) =
 
   const subscription = supabase
     .channel(`trades_${accountId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `accountId=eq.${accountId}` }, (payload) => {
-      console.log('Trade change detected:', payload);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `accountId=eq.${accountId}` }, () => {
       fetchTrades();
     })
-    .subscribe((status) => {
-      console.log(`Trades subscription status for ${accountId}:`, status);
-    });
+    .subscribe();
 
   return () => {
     supabase.removeChannel(subscription);
@@ -165,8 +130,6 @@ export const subscribeToTrades = (accountId: string, callback: (trades: any[]) =
 };
 
 export const subscribeToAllUserTrades = (userId: string, callback: (trades: any[]) => void) => {
-  if (isConfigMissing) return () => {};
-
   const fetchTrades = async () => {
     try {
       const { data, error } = await supabase
@@ -177,11 +140,13 @@ export const subscribeToAllUserTrades = (userId: string, callback: (trades: any[
       
       if (error) {
         console.error('Error fetching all trades:', error);
+        callback([]);
         return;
       }
       callback(data || []);
     } catch (err) {
       console.error('Unexpected error fetching all trades:', err);
+      callback([]);
     }
   };
 
@@ -189,7 +154,7 @@ export const subscribeToAllUserTrades = (userId: string, callback: (trades: any[
 
   const subscription = supabase
     .channel(`all_trades_${userId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `userId=eq.${userId}` }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'trades', filter: `userId=eq.${userId}` }, () => {
       fetchTrades();
     })
     .subscribe();
@@ -200,8 +165,6 @@ export const subscribeToAllUserTrades = (userId: string, callback: (trades: any[
 };
 
 export const subscribeToAllUserWithdrawals = (userId: string, callback: (withdrawals: any[]) => void) => {
-  if (isConfigMissing) return () => {};
-
   const fetchWithdrawals = async () => {
     try {
       const { data, error } = await supabase
@@ -212,11 +175,13 @@ export const subscribeToAllUserWithdrawals = (userId: string, callback: (withdra
       
       if (error) {
         console.error('Error fetching all withdrawals:', error);
+        callback([]);
         return;
       }
       callback(data || []);
     } catch (err) {
       console.error('Unexpected error fetching all withdrawals:', err);
+      callback([]);
     }
   };
 
@@ -224,7 +189,7 @@ export const subscribeToAllUserWithdrawals = (userId: string, callback: (withdra
 
   const subscription = supabase
     .channel(`all_withdrawals_${userId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals', filter: `userId=eq.${userId}` }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals', filter: `userId=eq.${userId}` }, () => {
       fetchWithdrawals();
     })
     .subscribe();
@@ -235,17 +200,11 @@ export const subscribeToAllUserWithdrawals = (userId: string, callback: (withdra
 };
 
 export const addTrade = async (tradeData: any) => {
-  if (isConfigMissing) return mock.mockAddTrade(tradeData);
-
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    console.error('No authenticated user found when adding trade');
-    return null;
+    throw new Error("No authenticated user found.");
   }
 
-  console.log('Inserting trade for user:', user.id, tradeData);
-
-  // Remove any undefined fields
   const cleanData = Object.fromEntries(
     Object.entries(tradeData).filter(([_, v]) => v !== undefined)
   );
@@ -259,17 +218,11 @@ export const addTrade = async (tradeData: any) => {
 
   if (tradeError) {
     console.error('Supabase error adding trade:', tradeError);
-    if (tradeError.code === '23502') {
-      throw new Error(`Missing required field: ${tradeError.details || tradeError.message}`);
-    }
-    if (tradeError.code === '42P01') {
-      throw new Error("Database table 'trades' not found. Please run the SQL script.");
-    }
     throw tradeError;
   }
 
   // 2. Update account balance if profitLoss is provided
-  if (tradeData.profitLoss) {
+  if (tradeData.profitLoss && tradeData.accountId) {
     const { data: account } = await supabase
       .from('accounts')
       .select('currentBalance')
@@ -284,15 +237,12 @@ export const addTrade = async (tradeData: any) => {
     }
   }
 
-  console.log('Trade created successfully:', trade.id);
   return trade.id;
 };
 
 export const addWithdrawal = async (withdrawalData: any) => {
-  if (isConfigMissing) return null;
-
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) throw new Error("No authenticated user found.");
 
   // 1. Insert the withdrawal
   const { data: withdrawal, error: withdrawalError } = await supabase
@@ -302,34 +252,31 @@ export const addWithdrawal = async (withdrawalData: any) => {
     .single();
 
   if (withdrawalError) {
-    console.error('Error adding withdrawal:', withdrawalError);
-    if (withdrawalError.code === '42P01') {
-      throw new Error("Database table 'withdrawals' not found. Please run the SQL script.");
-    }
+    console.error('Error adding withdrawal to Supabase:', withdrawalError);
     throw withdrawalError;
   }
 
   // 2. Update account balance
-  const { data: account } = await supabase
-    .from('accounts')
-    .select('currentBalance')
-    .eq('id', withdrawalData.accountId)
-    .single();
-
-  if (account) {
-    const newBalance = (account.currentBalance || 0) - withdrawalData.amount;
-    await supabase
+  if (withdrawalData.accountId && withdrawalData.amount) {
+    const { data: account } = await supabase
       .from('accounts')
-      .update({ currentBalance: newBalance })
-      .eq('id', withdrawalData.accountId);
+      .select('currentBalance')
+      .eq('id', withdrawalData.accountId)
+      .single();
+
+    if (account) {
+      const newBalance = (account.currentBalance || 0) - withdrawalData.amount;
+      await supabase
+        .from('accounts')
+        .update({ currentBalance: newBalance })
+        .eq('id', withdrawalData.accountId);
+    }
   }
 
   return withdrawal.id;
 };
 
 export const subscribeToWithdrawals = (accountId: string, callback: (withdrawals: any[]) => void) => {
-  if (isConfigMissing) return () => {};
-
   const fetchWithdrawals = async () => {
     try {
       const { data, error } = await supabase
@@ -352,7 +299,7 @@ export const subscribeToWithdrawals = (accountId: string, callback: (withdrawals
 
   const subscription = supabase
     .channel(`withdrawals_${accountId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals', filter: `accountId=eq.${accountId}` }, (payload) => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals', filter: `accountId=eq.${accountId}` }, () => {
       fetchWithdrawals();
     })
     .subscribe();
@@ -363,14 +310,9 @@ export const subscribeToWithdrawals = (accountId: string, callback: (withdrawals
 };
 
 export const updateTrade = async (tradeId: string, updates: any) => {
-  if (isConfigMissing) return;
-
-  // Remove any undefined fields
   const cleanData = Object.fromEntries(
     Object.entries(updates).filter(([_, v]) => v !== undefined)
   );
-
-  console.log('Updating trade in Supabase:', tradeId, cleanData);
 
   const { error } = await supabase
     .from('trades')
@@ -378,17 +320,12 @@ export const updateTrade = async (tradeId: string, updates: any) => {
     .eq('id', tradeId);
 
   if (error) {
-    console.error('Error updating trade:', error);
-    if (error.code === '42703') {
-      throw new Error(`Database column missing in trades table: ${error.message}. Please run the SQL script to update your schema.`);
-    }
+    console.error('Error updating trade in Supabase:', error);
     throw error;
   }
 };
 
 export const deleteTrade = async (tradeId: string, accountId: string, profitLoss: number) => {
-  if (isConfigMissing) return mock.mockDeleteTrade(tradeId, accountId, profitLoss);
-
   // 1. Delete the trade
   const { error } = await supabase
     .from('trades')
@@ -396,12 +333,12 @@ export const deleteTrade = async (tradeId: string, accountId: string, profitLoss
     .eq('id', tradeId);
 
   if (error) {
-    console.error('Error deleting trade:', error);
+    console.error('Error deleting trade from Supabase:', error);
     throw error;
   }
 
   // 2. Revert account balance
-  if (profitLoss) {
+  if (profitLoss && accountId) {
     const { data: account } = await supabase
       .from('accounts')
       .select('currentBalance')
