@@ -13,6 +13,7 @@ import AddTradeDialog from './components/AddTradeDialog';
 import WithdrawDialog from './components/WithdrawDialog';
 import TradeDetailDialog from './components/TradeDetailDialog';
 import RiskCalculator from './components/RiskCalculator';
+import SchemaNoticeBanner from './components/SchemaNoticeBanner';
 import { Account, Trade, Withdrawal } from './types';
 import { supabase } from './lib/supabase';
 import { 
@@ -49,12 +50,10 @@ export default function App() {
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
 
   useEffect(() => {
-    // Clear any previous mock keys from browser localStorage
-    if (typeof window !== 'undefined' && window.localStorage) {
-      ['forex_tracker_accounts', 'forex_tracker_trades', 'forex_tracker_withdrawals', 'forex_tracker_user'].forEach(k => {
-        try { localStorage.removeItem(k); } catch (e) { /* ignore */ }
-      });
-    }
+    // Fast resolution so the user never sees a stalled loading screen
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
 
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
@@ -65,6 +64,7 @@ export default function App() {
         setUser(null);
       })
       .finally(() => {
+        clearTimeout(timer);
         setLoading(false);
       });
 
@@ -72,7 +72,10 @@ export default function App() {
       setUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -122,10 +125,10 @@ export default function App() {
     if (user && selectedAccount) {
       const unsubscribeTrades = subscribeToTrades(selectedAccount.id, (data) => {
         setTrades(data);
-      });
+      }, user.id);
       const unsubscribeWithdrawals = subscribeToWithdrawals(selectedAccount.id, (data) => {
         setWithdrawals(data);
-      });
+      }, user.id);
       return () => {
         unsubscribeTrades();
         unsubscribeWithdrawals();
@@ -192,15 +195,26 @@ export default function App() {
     }
   };
 
+  const handleGuestLogin = () => {
+    setUser({ id: 'guest_user', email: 'guest@tradex.pro', isGuest: true });
+  };
+
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
     setUser(null);
     setSelectedAccount(null);
   };
 
   const handleAddAccount = async (accountData: any) => {
     try {
-      const id = await addAccount(accountData);
+      const id = await addAccount({
+        ...accountData,
+        userId: user?.id || 'guest_user'
+      });
       if (!id) throw new Error("Failed to create account record.");
       
       if (user) {
@@ -219,7 +233,11 @@ export default function App() {
   const handleAddTrade = async (tradeData: any) => {
     const acc = selectedAccount || accounts[0];
     if (acc) {
-      await addTrade({ ...tradeData, accountId: acc.id });
+      await addTrade({ 
+        ...tradeData, 
+        accountId: acc.id,
+        userId: user?.id || 'guest_user'
+      });
     }
   };
 
@@ -227,6 +245,7 @@ export default function App() {
     if (selectedAccount) {
       await addWithdrawal({
         accountId: selectedAccount.id,
+        userId: user?.id || 'guest_user',
         amount,
         notes,
         createdAt: new Date().toISOString()
@@ -236,12 +255,12 @@ export default function App() {
 
   const handleUpdateTrade = async (tradeId: string, updates: Partial<Trade>) => {
     if (selectedAccount) {
-      await updateTrade(tradeId, updates);
+      await updateTrade(tradeId, updates, user?.id);
       
       if (updates.status === 'closed' && updates.profitLoss !== undefined) {
         const newBalance = (selectedAccount.currentBalance || 0) + updates.profitLoss;
         try {
-          await updateAccount(selectedAccount.id, { currentBalance: newBalance });
+          await updateAccount(selectedAccount.id, { currentBalance: newBalance }, user?.id);
         } catch (error) {
           console.error("Failed to update account balance:", error);
         }
@@ -253,7 +272,7 @@ export default function App() {
     if (selectedAccount) {
       const trade = trades.find(t => t.id === tradeId);
       if (trade) {
-        await deleteTrade(tradeId, selectedAccount.id, trade.profitLoss || 0);
+        await deleteTrade(tradeId, selectedAccount.id, trade.profitLoss || 0, user?.id);
       }
     }
   };
@@ -263,7 +282,7 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans">
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs uppercase font-bold tracking-wider text-slate-500">Connecting to Database...</p>
+          <p className="text-xs uppercase font-bold tracking-wider text-slate-500">Connecting to Journal...</p>
         </div>
       </div>
     );
@@ -297,8 +316,11 @@ export default function App() {
         }
       }}
     >
+      {/* Schema notice banner if tables don't exist yet */}
+      <SchemaNoticeBanner />
+
       {!user ? (
-        <Auth onLogin={handleLogin} onSignUp={handleSignUp} />
+        <Auth onLogin={handleLogin} onSignUp={handleSignUp} onGuestLogin={handleGuestLogin} />
       ) : activeNav === 'risk' && currentWorkingAccount ? (
         <div className="space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
